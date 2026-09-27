@@ -1,20 +1,17 @@
 import pandas as pd
-import os
-import joblib
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import joblib
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
-
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
-# Load cleaned dataset
-df = pd.read_csv("data/air_quality_cleaned.csv")
+# Load feature-engineered dataset
+df = pd.read_csv("data/air_quality_feature_engineered.csv")
 
 print("Dataset Shape:")
 print(df.shape)
@@ -26,21 +23,13 @@ print(df.columns.tolist())
 # Convert date column
 df["date"] = pd.to_datetime(df["date"])
 
-# Sort data by city and date
-df = df.sort_values(["city", "date"]).reset_index(drop=True)
+# Sort by date and city
+df = df.sort_values(
+    ["date", "city"]
+).reset_index(drop=True)
 
 
-# Create next-day AQI target
-df["target_aqi"] = df.groupby("city")["aqi"].shift(-1)
-
-# Remove rows where next-day AQI is not available
-df = df.dropna(subset=["target_aqi"]).reset_index(drop=True)
-
-print("\nDataset Shape After Creating Target:")
-print(df.shape)
-
-
-# Select input features
+# Define features and target
 features = [
     "city",
     "pm25",
@@ -49,15 +38,62 @@ features = [
     "so2",
     "co",
     "o3",
-    "aqi"
+    "aqi",
+    "aqi_lag1",
+    "aqi_lag2",
+    "aqi_lag3",
+    "aqi_rolling3",
+    "aqi_rolling7"
 ]
 
+target = "target_aqi"
+
 X = df[features]
-y = df["target_aqi"]
+y = df[target]
 
 
-# Identify categorical and numerical features
-categorical_features = ["city"]
+# Create chronological train-test split
+unique_dates = sorted(
+    df["date"].unique()
+)
+
+split_index = int(
+    len(unique_dates) * 0.8
+)
+
+split_date = unique_dates[split_index]
+
+train_mask = df["date"] < split_date
+test_mask = df["date"] >= split_date
+
+X_train = X[train_mask]
+X_test = X[test_mask]
+
+y_train = y[train_mask]
+y_test = y[test_mask]
+
+
+print("\nTraining Data Shape:")
+print(X_train.shape)
+
+print("\nTesting Data Shape:")
+print(X_test.shape)
+
+print("\nTraining Date Range:")
+print(df.loc[train_mask, "date"].min())
+print("to")
+print(df.loc[train_mask, "date"].max())
+
+print("\nTesting Date Range:")
+print(df.loc[test_mask, "date"].min())
+print("to")
+print(df.loc[test_mask, "date"].max())
+
+
+# Define categorical and numerical features
+categorical_features = [
+    "city"
+]
 
 numerical_features = [
     "pm25",
@@ -66,16 +102,23 @@ numerical_features = [
     "so2",
     "co",
     "o3",
-    "aqi"
+    "aqi",
+    "aqi_lag1",
+    "aqi_lag2",
+    "aqi_lag3",
+    "aqi_rolling3",
+    "aqi_rolling7"
 ]
 
 
-# Encode city and keep numerical features unchanged
+# Preprocessing
 preprocessor = ColumnTransformer(
     transformers=[
         (
             "city",
-            OneHotEncoder(handle_unknown="ignore"),
+            OneHotEncoder(
+                handle_unknown="ignore"
+            ),
             categorical_features
         ),
         (
@@ -85,205 +128,15 @@ preprocessor = ColumnTransformer(
         )
     ]
 )
-
-
-# Split data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
-    random_state=42
-)
-
-print("\nTraining Data Shape:")
-print(X_train.shape)
-
-print("\nTesting Data Shape:")
-print(X_test.shape)
 
 
 # Define models
 models = {
     "Linear Regression": LinearRegression(),
+
     "Random Forest": RandomForestRegressor(
-        n_estimators=100,
-        random_state=42,
-        n_jobs=-1
-    ),
-    "Gradient Boosting": GradientBoostingRegressor(
         n_estimators=100,
         random_state=42
-    )
-}
-
-
-# Train models and generate predictions
-predictions = {}
-
-for name, model in models.items():
-
-    pipeline = Pipeline(
-        steps=[
-            ("preprocessing", preprocessor),
-            ("model", model)
-        ]
-    )
-
-    pipeline.fit(X_train, y_train)
-
-    predictions[name] = pipeline.predict(X_test)
-
-    print(f"\n{name} training completed.")
-    print("Number of predictions:", len(predictions[name]))
-
-
-print("\nPart 1 ML Training Completed.")
-
-
-
-
-
-import os
-import pandas as pd
-import joblib
-import matplotlib.pyplot as plt
-
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
-
-# ============================================================
-# 1. LOAD CLEANED DATASET
-# ============================================================
-
-df = pd.read_csv("data/air_quality_cleaned.csv")
-
-print("Dataset Shape:")
-print(df.shape)
-
-print("\nColumns:")
-print(df.columns.tolist())
-
-
-# ============================================================
-# 2. DATE PROCESSING
-# ============================================================
-
-df["date"] = pd.to_datetime(df["date"])
-
-df = df.sort_values(
-    ["city", "date"]
-).reset_index(drop=True)
-
-
-# ============================================================
-# 3. CREATE NEXT-DAY AQI TARGET
-# ============================================================
-
-df["target_aqi"] = df.groupby("city")["aqi"].shift(-1)
-
-df = df.dropna(
-    subset=["target_aqi"]
-).reset_index(drop=True)
-
-print("\nDataset Shape After Creating Target:")
-print(df.shape)
-
-
-# ============================================================
-# 4. SELECT FEATURES
-# ============================================================
-
-features = [
-    "city",
-    "pm25",
-    "pm10",
-    "no2",
-    "so2",
-    "co",
-    "o3",
-    "aqi"
-]
-
-X = df[features]
-
-y = df["target_aqi"]
-
-
-# ============================================================
-# 5. CATEGORICAL AND NUMERICAL FEATURES
-# ============================================================
-
-categorical_features = ["city"]
-
-numerical_features = [
-    "pm25",
-    "pm10",
-    "no2",
-    "so2",
-    "co",
-    "o3",
-    "aqi"
-]
-
-
-# ============================================================
-# 6. PREPROCESSING
-# ============================================================
-
-preprocessor = ColumnTransformer(
-    transformers=[
-        (
-            "city",
-            OneHotEncoder(handle_unknown="ignore"),
-            categorical_features
-        ),
-        (
-            "numbers",
-            "passthrough",
-            numerical_features
-        )
-    ]
-)
-
-
-# ============================================================
-# 7. TRAIN-TEST SPLIT
-# ============================================================
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
-    random_state=42
-)
-
-print("\nTraining Data Shape:")
-print(X_train.shape)
-
-print("\nTesting Data Shape:")
-print(X_test.shape)
-
-
-# ============================================================
-# 8. DEFINE THREE ML MODELS
-# ============================================================
-
-models = {
-
-    "Linear Regression": LinearRegression(),
-
-    "Random Forest": RandomForestRegressor(
-        n_estimators=100,
-        random_state=42,
-        n_jobs=-1
     ),
 
     "Gradient Boosting": GradientBoostingRegressor(
@@ -293,21 +146,47 @@ models = {
 }
 
 
-# ============================================================
-# 9. TRAIN MODELS
-# ============================================================
-
+results = []
 predictions = {}
 
-trained_models = {}
+
+# Calculate naive baseline
+baseline_predictions = X_test["aqi_lag1"]
+
+baseline_mae = mean_absolute_error(
+    y_test,
+    baseline_predictions
+)
+
+baseline_rmse = mean_squared_error(
+    y_test,
+    baseline_predictions
+) ** 0.5
+
+baseline_r2 = r2_score(
+    y_test,
+    baseline_predictions
+)
+
+print("\nNaive Baseline:")
+print(f"MAE: {baseline_mae:.3f}")
+print(f"RMSE: {baseline_rmse:.3f}")
+print(f"R2: {baseline_r2:.3f}")
 
 
-for name, model in models.items():
+# Train and evaluate models
+for model_name, model in models.items():
 
     pipeline = Pipeline(
         steps=[
-            ("preprocessing", preprocessor),
-            ("model", model)
+            (
+                "preprocessor",
+                preprocessor
+            ),
+            (
+                "model",
+                model
+            )
         ]
     )
 
@@ -316,171 +195,209 @@ for name, model in models.items():
         y_train
     )
 
-    # Save trained pipeline
-    trained_models[name] = pipeline
-
-    # Make predictions
-    predictions[name] = pipeline.predict(X_test)
-
-    print(f"\n{name} training completed.")
-
-    print(
-        "Number of predictions:",
-        len(predictions[name])
+    y_pred = pipeline.predict(
+        X_test
     )
 
-
-# ============================================================
-# 10. MODEL EVALUATION
-# ============================================================
-
-print("\n")
-print("=" * 60)
-print("MODEL EVALUATION")
-print("=" * 60)
-
-
-results = []
-
-
-for name, y_pred in predictions.items():
-
-    # MAE
     mae = mean_absolute_error(
         y_test,
         y_pred
     )
 
-    # RMSE
     rmse = mean_squared_error(
         y_test,
         y_pred
     ) ** 0.5
 
-    # R2
     r2 = r2_score(
         y_test,
         y_pred
     )
 
-    results.append({
+    results.append(
+        {
+            "Model": model_name,
+            "MAE": round(mae, 3),
+            "RMSE": round(rmse, 3),
+            "R2": round(r2, 3)
+        }
+    )
 
-        "Model": name,
+    predictions[model_name] = y_pred
 
-        "MAE": mae,
+    print(
+        f"\n{model_name} training completed."
+    )
 
-        "RMSE": rmse,
+    print(
+        f"MAE: {mae:.3f}"
+    )
 
-        "R2": r2
+    print(
+        f"RMSE: {rmse:.3f}"
+    )
 
-    })
+    print(
+        f"R2: {r2:.3f}"
+    )
 
 
-# ============================================================
-# 11. CREATE COMPARISON TABLE
-# ============================================================
-
-results_df = pd.DataFrame(results)
-
+# Model comparison
+results_df = pd.DataFrame(
+    results
+)
 
 print("\nModel Comparison:")
-
-print(
-    results_df.round(3)
-)
+print(results_df)
 
 
-# Save comparison table
-
-os.makedirs(
-    "data",
-    exist_ok=True
-)
-
-
+# Save model comparison
 results_df.to_csv(
     "data/model_comparison.csv",
     index=False
 )
 
-
 print("\nModel comparison saved at:")
-
 print(
     "data/model_comparison.csv"
 )
 
 
-# ============================================================
-# 12. SELECT FINAL MODEL
-# ============================================================
-
-# Lower RMSE is better
-
+# Select model with lowest RMSE
 best_model_name = results_df.loc[
     results_df["RMSE"].idxmin(),
     "Model"
 ]
 
-
-best_model = trained_models[
-    best_model_name
-]
-
-
-print("\n")
-print("=" * 60)
-print("FINAL MODEL")
-print("=" * 60)
-
-
-print(
-    "Selected Model:",
-    best_model_name
-)
-
+print("\nSelected Model:")
+print(best_model_name)
 
 print(
     "Reason: Lowest RMSE among the three models."
 )
 
 
-# ============================================================
-# 13. SAVE FINAL MODEL USING JOBLIB
-# ============================================================
+# Check whether selected model beats baseline
+best_rmse = results_df.loc[
+    results_df["Model"] == best_model_name,
+    "RMSE"
+].iloc[0]
 
-os.makedirs(
-    "models",
-    exist_ok=True
+print("\nBaseline RMSE:")
+print(
+    round(baseline_rmse, 3)
+)
+
+print("\nBest Model RMSE:")
+print(
+    round(best_rmse, 3)
+)
+
+if best_rmse < baseline_rmse:
+
+    print(
+        "\nThe ML model performs better than "
+        "the naive baseline."
+    )
+
+else:
+
+    print(
+        "\nThe ML model does not improve "
+        "over the naive baseline."
+    )
+
+
+# Train selected model again
+final_model = Pipeline(
+    steps=[
+        (
+            "preprocessor",
+            preprocessor
+        ),
+        (
+            "model",
+            models[best_model_name]
+        )
+    ]
+)
+
+final_model.fit(
+    X_train,
+    y_train
 )
 
 
+# Check feature importance
+model = final_model.named_steps["model"]
+
+preprocessor_fitted = (
+    final_model.named_steps["preprocessor"]
+)
+
+feature_names = (
+    preprocessor_fitted
+    .get_feature_names_out()
+)
+
+importance = model.feature_importances_
+
+feature_importance = pd.DataFrame(
+    {
+        "Feature": feature_names,
+        "Importance": importance
+    }
+)
+
+feature_importance = (
+    feature_importance
+    .sort_values(
+        "Importance",
+        ascending=False
+    )
+)
+
+print("\nFeature Importance:")
+
+print(
+    feature_importance
+    .head(15)
+    .to_string(index=False)
+)
+
+
+# Save feature importance
+feature_importance.to_csv(
+    "data/feature_importance.csv",
+    index=False
+)
+
+print("\nFeature importance saved at:")
+print(
+    "data/feature_importance.csv"
+)
+
+
+# Save final model
 joblib.dump(
-    best_model,
+    final_model,
     "models/final_aqi_model.joblib"
 )
 
-
 print("\nFinal model saved at:")
-
 print(
     "models/final_aqi_model.joblib"
 )
 
 
-# ============================================================
-# 14. ACTUAL VS PREDICTED AQI GRAPH
-# ============================================================
-
-best_predictions = predictions[
-    best_model_name
-]
-
+# Create actual vs predicted graph
+best_predictions = (
+    predictions[best_model_name]
+)
 
 plt.figure(
     figsize=(8, 6)
 )
-
 
 plt.scatter(
     y_test,
@@ -488,27 +405,21 @@ plt.scatter(
     alpha=0.5
 )
 
-
-# Perfect prediction reference line
-
 min_value = min(
     y_test.min(),
     best_predictions.min()
 )
-
 
 max_value = max(
     y_test.max(),
     best_predictions.max()
 )
 
-
 plt.plot(
     [min_value, max_value],
     [min_value, max_value],
     linestyle="--"
 )
-
 
 plt.xlabel(
     "Actual AQI"
@@ -518,36 +429,28 @@ plt.ylabel(
     "Predicted AQI"
 )
 
-
 plt.title(
-    f"Actual vs Predicted AQI - {best_model_name}"
+    f"Actual vs Predicted AQI - "
+    f"{best_model_name}"
 )
-
 
 plt.tight_layout()
 
-
 plt.savefig(
-    "data/actual_vs_predicted_aqi.png",
-    dpi=300
+    "data/actual_vs_predicted_aqi.png"
 )
 
+plt.close()
 
-plt.show()
-
-
-print("\nActual vs Predicted graph saved at:")
+print(
+    "\nActual vs Predicted graph saved at:"
+)
 
 print(
     "data/actual_vs_predicted_aqi.png"
 )
 
 
-# ============================================================
-# 15. COMPLETION MESSAGE
-# ============================================================
-
-print("\n")
-print("=" * 60)
-print("PART 2 ML EVALUATION COMPLETED")
-print("=" * 60)
+print(
+    "\nML training and evaluation completed."
+)
