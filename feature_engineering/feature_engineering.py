@@ -1,19 +1,12 @@
 import pandas as pd
 
-# =========================================
-# 1. LOAD CLEANED DATASET
-# =========================================
-
+# Load cleaned dataset
 df = pd.read_csv("data/air_quality_cleaned.csv")
 
 print("Original Dataset Shape:")
 print(df.shape)
 
-
-# =========================================
-# 2. CONVERT DATE COLUMN
-# =========================================
-
+# Convert date column
 df["date"] = pd.to_datetime(df["date"])
 
 # Sort data city-wise and date-wise
@@ -25,93 +18,92 @@ print(df["date"].min(), "to", df["date"].max())
 print("\nCities:")
 print(df["city"].unique())
 
+# Create next-day AQI target
+df["target_aqi"] = df.groupby("city")["aqi"].shift(-1)
 
-# =========================================
-# 3. CREATE NEXT-DAY AQI TARGET
-# =========================================
+# Create AQI lag features
+df["aqi_lag1"] = df.groupby("city")["aqi"].shift(1)
+df["aqi_lag2"] = df.groupby("city")["aqi"].shift(2)
+df["aqi_lag3"] = df.groupby("city")["aqi"].shift(3)
 
-df["target_aqi"] = (
-    df.groupby("city")["aqi"].shift(-1)
+# Create rolling AQI features
+df["aqi_rolling3"] = (
+    df.groupby("city")["aqi"]
+    .transform(lambda x: x.shift(1).rolling(3).mean())
 )
 
-print("\nSample of Next-Day AQI Target:")
-print(
-    df[
-        ["city", "date", "aqi", "target_aqi"]
-    ].head(10)
+df["aqi_rolling7"] = (
+    df.groupby("city")["aqi"]
+    .transform(lambda x: x.shift(1).rolling(7).mean())
 )
 
-
-# =========================================
-# 4. CHECK DATE CONTINUITY
-# =========================================
-
-df["next_date"] = (
-    df.groupby("city")["date"].shift(-1)
-)
+# Check date continuity
+df["next_date"] = df.groupby("city")["date"].shift(-1)
 
 df["date_difference"] = (
     df["next_date"] - df["date"]
 ).dt.days
 
-print("\nDate Difference Between Consecutive Records:")
-print(
-    df["date_difference"]
-    .value_counts()
-    .sort_index()
-)
+print("\nDate Difference:")
+print(df["date_difference"].value_counts().sort_index())
 
 print("\nRecords Where Next Date Is Not Exactly 1 Day:")
+print((df["date_difference"] != 1).sum())
+
+# Check missing values
+print("\nMissing Values:")
 print(
-    (df["date_difference"] != 1).sum()
+    df[
+        [
+            "target_aqi",
+            "aqi_lag1",
+            "aqi_lag2",
+            "aqi_lag3",
+            "aqi_rolling3",
+            "aqi_rolling7"
+        ]
+    ].isnull().sum()
 )
 
-
-# =========================================
-# 5. CHECK TARGET MISSING VALUES
-# =========================================
-
-print("\nMissing Target Values:")
-print(
-    df["target_aqi"].isnull().sum()
-)
-
-
-# =========================================
-# 6. REMOVE LAST RECORD OF EACH CITY
-# =========================================
-
+# Remove rows with missing values
 df = df.dropna(
-    subset=["target_aqi"]
+    subset=[
+        "target_aqi",
+        "aqi_lag1",
+        "aqi_lag2",
+        "aqi_lag3",
+        "aqi_rolling3",
+        "aqi_rolling7"
+    ]
 ).reset_index(drop=True)
 
-
-# =========================================
-# 7. FINAL DATASET SHAPE
-# =========================================
+# Remove temporary columns
+df = df.drop(columns=["next_date", "date_difference"])
 
 print("\nFinal Dataset Shape:")
 print(df.shape)
 
-
-# =========================================
-# 8. FINAL DATASET PREVIEW
-# =========================================
-
-print("\nFinal Feature-Engineered Dataset:")
+print("\nFeature-Engineered Dataset:")
 print(
     df[
         [
             "city",
             "date",
             "aqi",
-            "pm25",
-            "pm10",
-            "no2",
-            "so2",
-            "co",
-            "o3",
+            "aqi_lag1",
+            "aqi_lag2",
+            "aqi_lag3",
+            "aqi_rolling3",
+            "aqi_rolling7",
             "target_aqi"
         ]
     ].head(10)
 )
+
+# Save feature-engineered dataset
+df.to_csv(
+    "data/air_quality_feature_engineered.csv",
+    index=False
+)
+
+print("\nFeature-engineered dataset saved successfully.")
