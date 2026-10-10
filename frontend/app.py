@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.theme import apply_theme
 
 st.set_page_config(
     page_title="NABHA",
@@ -6,70 +7,39 @@ st.set_page_config(
     layout="wide"
 )
 
+apply_theme()
+
 st.title("🌿 NABHA")
-st.subheader("Air Quality Monitoring and Health Advisory")
+st.subheader("Air Quality Prediction and Health Advisory System")
 
 st.write(
-    "Welcome to NABHA, an air quality awareness project."
+    "NABHA provides air quality information, "
+    "AQI predictions, and health recommendations "
+    "based on pollution levels."
 )
 
-section = st.sidebar.selectbox(
-    "Select Section",
-    [
-        "Home",
-        "Health Advisory",
-        "Air Quality Information"
-    ]
+st.divider()
+
+st.header("👤 User Profile")
+
+name = st.text_input("Enter Your Name")
+
+city = st.selectbox(
+    "Choose Your Preferred City",
+    ["Mumbai", "Pune", "Nagpur", "Delhi", "Nashik"]
 )
 
-if section == "Home":
-    st.header("Welcome to NABHA")
-    st.write("Learn about air quality and its effects on health.")
+if st.button("Save Profile"):
+    st.session_state["user_name"] = name
+    st.session_state["preferred_city"] = city
 
-elif section == "Health Advisory":
-    st.header("🌿 Health Advisory")
+    st.success("Profile saved for this session!")
 
-    aqi = st.slider("Select AQI", 0, 300, 78)
+if "user_name" in st.session_state:
+    st.write("Name:", st.session_state["user_name"])
+    st.write("Preferred City:", st.session_state["preferred_city"])
 
-    profile = st.selectbox(
-        "Select Your Profile",
-        [
-            "General Adult",
-            "Child",
-            "Older Adult",
-            "Sensitive to Air Pollution"
-        ]
-    )
-
-    if aqi <= 50:
-        category = "Good"
-        advice = "Continue normal activities and monitor air quality."
-    elif aqi <= 100:
-        category = "Moderate"
-        advice = "Monitor air quality before prolonged outdoor activity."
-    elif aqi <= 150:
-        category = "Poor"
-        advice = "Reduce prolonged or strenuous outdoor activity."
-    elif aqi <= 200:
-        category = "Very Poor"
-        advice = "Limit outdoor exposure and follow local guidance."
-    else:
-        category = "Severe"
-        advice = "Minimize outdoor exposure and follow official guidance."
-
-    st.metric("Example AQI", aqi)
-    st.subheader("Air Quality: " + category)
-    st.info(advice)
-    st.write("Selected Profile:", profile)
-    st.caption("Example values only, not live AQI readings.")
-
-elif section == "Air Quality Information":
-    st.header("Air Quality Information")
-    st.write(
-        "AQI helps describe the level of air pollution."
-    )
-    st.info(
-        "Air quality readings are not connected yet. "
-        "This is a project demonstration."
-    )
- 
+st.caption(
+    "Profile preferences are currently saved only "
+    "for the active session."
+)
